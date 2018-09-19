@@ -39,5 +39,10 @@
         /// Retire les attributs de colonnes sur les alias.
         /// </summary>
         public bool? NoColumnOnAlias { get; set; } = false;
+
+        /// <summary>
+        /// Utilise la structure de projet legacy.
+        /// </summary>
+        public bool LegacyProjectPaths { get; set; } = false;
     }
 }
