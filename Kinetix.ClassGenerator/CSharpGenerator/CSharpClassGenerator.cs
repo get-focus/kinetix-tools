@@ -256,7 +256,7 @@ namespace Kinetix.ClassGenerator.CSharpGenerator
                 w.WriteLine(3, property.Name + " = new List<" + LoadInnerDataType(property.DataType) + ">(bean." + property.Name + ");");
             }
 
-            foreach (var property in item.PropertyList.Where(p => p.IsPrimitive && (p.DataDescription.ReferenceClass == null || p.DataDescription.ReferenceClass != p.Class.ParentClass)))
+            foreach (var property in item.PropertyList.Where(p => p.IsPrimitive && !p.IsParentId))
             {
                 w.WriteLine(3, property.Name + " = bean." + property.Name + ";");
             }
@@ -327,7 +327,7 @@ namespace Kinetix.ClassGenerator.CSharpGenerator
         {
             if (item.PropertyList.Count > 0)
             {
-                foreach (var property in item.PersistentPropertyList.Where(p => !p.IsReprise && (p.DataDescription.ReferenceClass == null || p.DataDescription.ReferenceClass != p.Class.ParentClass)))
+                foreach (var property in item.PersistentPropertyList.Where(p => !p.IsReprise && !p.IsParentId))
                 {
                     w.WriteLine();
                     GenerateProperty(w, property);
@@ -510,7 +510,7 @@ namespace Kinetix.ClassGenerator.CSharpGenerator
             w.WriteLine(2, "public enum Cols");
             w.WriteLine(2, "{");
 
-            var cols = item.PersistentPropertyList.Where(p => p.DataDescription.ReferenceClass == null || p.DataDescription.ReferenceClass != p.Class.ParentClass).ToList();
+            var cols = item.PersistentPropertyList.Where(p => !p.IsParentId).ToList();
             foreach (var property in cols)
             {
                 w.WriteSummary(3, "Nom de la colonne en base associée à la propriété " + property.Name + ".");
