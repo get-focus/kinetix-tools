@@ -27,7 +27,7 @@ namespace Kinetix.ClassGenerator.CSharpGenerator
         /// <param name="ns">Namespace.</param>
         public void Generate(ModelClass item, ModelNamespace ns)
         {
-            var fileName = Path.Combine(GetDirectoryForModelClass(_parameters.OutputDirectory, item.DataContract.IsPersistent, _rootNamespace, item.Namespace.Name), item.Name + ".cs");
+            var fileName = Path.Combine(GetDirectoryForModelClass(_parameters.LegacyProjectPaths, _parameters.OutputDirectory, item.DataContract.IsPersistent, _rootNamespace, item.Namespace.Name), item.Name + ".cs");
             using (var w = new CSharpWriter(fileName))
             {
                 Console.WriteLine("Generating class " + ns.Name + "." + item.Name);
@@ -95,6 +95,16 @@ namespace Kinetix.ClassGenerator.CSharpGenerator
 
             GenerateConstProperties(w, item);
             GenerateConstructors(w, item);
+
+            if (_parameters.DbContextProjectPath == null && item.DataContract.IsPersistent && !item.IsView && item.PersistentPropertyList.Count > 0)
+            {
+                w.WriteLine();
+                w.WriteLine(2, "#region Meta données");
+                GenerateEnumCols(w, item);
+                w.WriteLine();
+                w.WriteLine(2, "#endregion");
+            }
+
             GenerateProperties(w, item);
             GenerateExtensibilityMethods(w, item);
             w.WriteLine(1, "}");
@@ -112,11 +122,11 @@ namespace Kinetix.ClassGenerator.CSharpGenerator
         /// <param name="item">La classe générée.</param>
         private void GenerateConstProperties(CSharpWriter w, ModelClass item)
         {
-            int nbConstValues = item.ConstValues.Count;
+            var nbConstValues = item.ConstValues.Count;
             if (nbConstValues != 0)
             {
-                int i = 0;
-                foreach (string constFieldName in item.ConstValues.Keys.OrderBy(x => x, StringComparer.Ordinal))
+                var i = 0;
+                foreach (var constFieldName in item.ConstValues.Keys.OrderBy(x => x, StringComparer.Ordinal))
                 {
                     ++i;
                     var valueLibelle = item.ConstValues[constFieldName];
@@ -160,7 +170,7 @@ namespace Kinetix.ClassGenerator.CSharpGenerator
         /// <param name="item">La classe générée.</param>
         private void GenerateConstPropertiesClass(CSharpWriter w, ModelClass item)
         {
-            int nbConstValues = item.ConstValues.Count;
+            var nbConstValues = item.ConstValues.Count;
             if (nbConstValues != 0)
             {
                 w.WriteLine();
@@ -246,7 +256,7 @@ namespace Kinetix.ClassGenerator.CSharpGenerator
                 w.WriteLine(3, property.Name + " = new List<" + LoadInnerDataType(property.DataType) + ">(bean." + property.Name + ");");
             }
 
-            foreach (var property in item.PropertyList.Where(p => p.IsPrimitive))
+            foreach (var property in item.PropertyList.Where(p => p.IsPrimitive && !p.IsParentId))
             {
                 w.WriteLine(3, property.Name + " = bean." + property.Name + ";");
             }
@@ -317,7 +327,7 @@ namespace Kinetix.ClassGenerator.CSharpGenerator
         {
             if (item.PropertyList.Count > 0)
             {
-                foreach (var property in item.PersistentPropertyList.Where(prop => !prop.IsReprise))
+                foreach (var property in item.PersistentPropertyList.Where(p => !p.IsReprise && !p.IsParentId))
                 {
                     w.WriteLine();
                     GenerateProperty(w, property);
@@ -393,7 +403,7 @@ namespace Kinetix.ClassGenerator.CSharpGenerator
                 w.WriteAttribute(2, "NotMapped");
             }
 
-            string @override = property.IsDerived ? "override " : "";
+            var @override = property.IsDerived ? "override " : "";
 
             w.WriteLine(2, $"public {@override}{LoadShortDataType(property.DataType)} {property.Name} {{ get; set; }}");
         }
@@ -407,7 +417,7 @@ namespace Kinetix.ClassGenerator.CSharpGenerator
         {
             var usings = new List<string> { "System" };
 
-            if (item.HasCollection || (_parameters.UseTypeSafeConstValues == true && item.ConstValues != null && item.ConstValues.Count > 0))
+            if (item.HasCollection || _parameters.UseTypeSafeConstValues == true && item.ConstValues != null && item.ConstValues.Count > 0)
             {
                 usings.Add("System.Collections.Generic");
             }
@@ -433,13 +443,17 @@ namespace Kinetix.ClassGenerator.CSharpGenerator
                 {
                     usings.Add("Kinetix.ComponentModel.Annotations");
                 }
-                else
+                else if (_parameters.Kinetix == "Framework")
                 {
                     usings.Add("Kinetix.ComponentModel");
                 }
+                else
+                {
+                    usings.Add("Fmk.ComponentModel");
+                }
             }
 
-            foreach (string value in item.UsingList)
+            foreach (var value in item.UsingList)
             {
                 usings.Add(value);
             }
@@ -482,6 +496,32 @@ namespace Kinetix.ClassGenerator.CSharpGenerator
             }
 
             return res;
+        }
+
+        /// <summary>
+        /// Génère le type énuméré présentant les colonnes persistentes.
+        /// </summary>
+        /// <param name="w">Writer.</param>
+        /// <param name="item">La classe générée.</param>
+        private void GenerateEnumCols(CSharpWriter w, ModelClass item)
+        {
+            w.WriteLine();
+            w.WriteSummary(2, "Type énuméré présentant les noms des colonnes en base.");
+            w.WriteLine(2, "public enum Cols");
+            w.WriteLine(2, "{");
+
+            var cols = item.PersistentPropertyList.Where(p => !p.IsParentId).ToList();
+            foreach (var property in cols)
+            {
+                w.WriteSummary(3, "Nom de la colonne en base associée à la propriété " + property.Name + ".");
+                w.WriteLine(3, $"{property.DataMember.Name},");
+                if (cols.IndexOf(property) != cols.Count - 1)
+                {
+                    w.WriteLine();
+                }
+            }
+
+            w.WriteLine(2, "}");
         }
     }
 }
